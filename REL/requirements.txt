@@ -1,0 +1,2 @@
+gymnasium==1.0.0
+gym_cutting_stock @ git+https://github.com/martinakaduc/gym-cutting-stock
