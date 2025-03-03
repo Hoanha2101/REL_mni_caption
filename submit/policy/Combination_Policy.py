@@ -1,5 +1,3 @@
-import numpy as np
-
 ################## Ý tưởng ##################
 
 # First-Fit Placement:
@@ -13,9 +11,6 @@ import numpy as np
 # Stock Merging:
 #     Nếu một stock đã cắt nhỏ hơn một stock chưa cắt, di chuyển phần đã cắt vào stock lớn hơn để giảm số lượng stock cần dùng.
 
-
-
-
 import numpy as np
 
 def first_fit_placement(observation):
@@ -25,11 +20,9 @@ def first_fit_placement(observation):
     list_prods = sorted(observation["products"], key=lambda x: x["size"][0] * x["size"][1], reverse=True)
     list_stocks = sorted(observation["stocks"], key=lambda x: np.sum(x != -2), reverse=True)
 
-    best_action = None
-
     for prod in list_prods:
         if prod["quantity"] <= 0:
-            continue
+            continue  # Bỏ qua sản phẩm đã hết
 
         prod_w, prod_h = prod["size"]
 
@@ -43,21 +36,12 @@ def first_fit_placement(observation):
             for x in range(stock_w - prod_w + 1):
                 for y in range(stock_h - prod_h + 1):
                     if np.all(stock[x:x + prod_w, y:y + prod_h] == -1):
-                        best_action = {
-                            "stock_idx": idx,
-                            "size": (prod_w, prod_h),
-                            "position": (x, y)
-                        }
-                        break  # Chọn vị trí đầu tiên phù hợp
-                if best_action:
-                    break
-            if best_action:
-                break
+                        stock[x:x + prod_w, y:y + prod_h] = 1  # Đánh dấu vùng đã sử dụng
+                        prod["quantity"] -= 1  # Giảm số lượng sản phẩm
+                        return {"stock_idx": idx, "size": (prod_w, prod_h), "position": (x, y)}
 
-        if best_action:
-            return best_action
+    return None  
 
-    return None  # Nếu không tìm thấy stock phù hợp
 
 def best_fit_refinement(observation):
     """
@@ -66,50 +50,39 @@ def best_fit_refinement(observation):
     list_prods = sorted(observation["products"], key=lambda x: x["size"][0] * x["size"][1], reverse=True)
     list_stocks = sorted(observation["stocks"], key=lambda x: np.sum(x != -2), reverse=True)
 
-    best_stock_idx, best_pos_x, best_pos_y = None, None, None
+    best_action = None
     min_sij = float("inf")
 
-    for prod in list_prods:
-        if prod["quantity"] <= 0:
-            continue
+    for stock_idx, stock in enumerate(list_stocks):
+        stock_w = np.sum(np.any(stock != -2, axis=1))
+        stock_h = np.sum(np.any(stock != -2, axis=0))
 
-        prod_w, prod_h = prod["size"]
+        for prod in list_prods:
+            if prod["quantity"] <= 0:
+                continue  
 
-        for idx, stock in enumerate(list_stocks):
-            stock_w = np.sum(np.any(stock != -2, axis=1))
-            stock_h = np.sum(np.any(stock != -2, axis=0))
+            prod_w, prod_h = prod["size"]
 
             if stock_w < prod_w or stock_h < prod_h:
-                continue
+                continue  
 
             for x in range(stock_w - prod_w + 1):
                 for y in range(stock_h - prod_h + 1):
                     if np.all(stock[x:x + prod_w, y:y + prod_h] == -1):
-                        sij = (x + prod_w) * (y + prod_h)  # Tính diện tích nhỏ nhất chứa sản phẩm
+                        sij = (x + prod_w) * (y + prod_h)  # Diện tích nhỏ nhất chứa sản phẩm
+
                         if sij < min_sij:
-                            best_stock_idx = idx
-                            best_pos_x, best_pos_y = x, y
+                            best_action = {"stock_idx": stock_idx, "size": (prod_w, prod_h), "position": (x, y)}
                             min_sij = sij
 
-    if best_stock_idx is None:
-        new_stock_idx = len(list_stocks)
-        return {
-            "stock_idx": new_stock_idx,
-            "size": (prod_w, prod_h),
-            "position": (0, 0)
-        }
+    return best_action  
 
-    return {
-        "stock_idx": best_stock_idx,
-        "size": (prod_w, prod_h),
-        "position": (best_pos_x, best_pos_y)
-    }
 
 def stock_merging(observation):
     """
     Phase 3: Stock Merging - Hợp nhất stock nhỏ vào stock lớn hơn.
     """
-    list_stocks = sorted(observation["stocks"], key=lambda x: np.sum(x != -2))  # Sắp xếp theo diện tích tăng dần
+    list_stocks = sorted(observation["stocks"], key=lambda x: np.sum(x != -2)) 
 
     for i, stock_i in enumerate(list_stocks):
         stock_i_area = np.sum(stock_i != -2)
@@ -121,13 +94,10 @@ def stock_merging(observation):
             stock_j_area = np.sum(stock_j != -2)
 
             if stock_i_area < stock_j_area:
-                return {
-                    "stock_idx": j,
-                    "size": (stock_i.shape[0], stock_i.shape[1]),
-                    "position": (0, 0)
-                }
+                return {"stock_idx": j, "size": (stock_i.shape[0], stock_i.shape[1]), "position": (0, 0)}
 
     return None
+
 
 def combination_policy(observation, info):
     """
@@ -139,10 +109,6 @@ def combination_policy(observation, info):
     if action is None:
         action = stock_merging(observation)
     if action is None:
-        action = {
-            "stock_idx": 0,
-            "size": (0, 0),
-            "position": (0, 0)
-        }
+        action = {"stock_idx": 0, "size": (0, 0), "position": (0, 0)}
     return action
 

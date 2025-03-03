@@ -7,12 +7,21 @@ import pickle
 from collections import deque
 from env.cutting_stock import CuttingStockEnv
 
-# **Khởi tạo môi trường Cutting Stock**
+# Danh sách stocks (width, height) - Tấm nguyên liệu có kích thước nhỏ, tối đa 200x200
 stocks = [
-    (100, 100), (80, 60), (90, 50), (120, 80)
+    (50, 50),   (60, 40),   (70, 50),   (80, 60),   (90, 70),
+    (100, 50),  (110, 60),  (120, 80),  (130, 90),  (140, 100),
+    (150, 120), (160, 130), (170, 140), (180, 150), (200, 200)
 ]
+
+# Danh sách products (width, height) - Sản phẩm có kích thước nhỏ, phù hợp với stocks
 products = [
-    (20, 10), (20, 10), (30, 20), (40, 30), (50, 25)
+    (10, 5),  (15, 10), (20, 10), (25, 15), (30, 20),
+    (35, 20), (40, 30), (45, 25), (50, 30), (55, 35),
+    (20, 15), (25, 10), (30, 15), (35, 20), (40, 25),
+    (45, 30), (50, 35), (55, 40), (60, 45), (65, 50),
+    (70, 30), (75, 40), (80, 50), (85, 55), (90, 60),
+    (15, 10), (20, 15), (25, 20), (30, 25), (35, 30)
 ]
 
 env = CuttingStockEnv(
@@ -145,10 +154,11 @@ for episode in range(num_episodes):
         batch = random.sample(memory, batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
 
-        states = torch.tensor(states, dtype=torch.float32).to(device)
+        states = torch.tensor(np.array(states), dtype=torch.float32).to(device)
         actions = torch.tensor(actions, dtype=torch.long).to(device)
         rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
-        next_states = torch.tensor(next_states, dtype=torch.float32).to(device)
+        next_states = torch.tensor(np.array(next_states), dtype=torch.float32).to(device)
+
         dones = torch.tensor(dones, dtype=torch.float32).to(device)
 
         Q_values = policy_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
@@ -163,7 +173,6 @@ for episode in range(num_episodes):
     if episode % update_target_frequency == 0:
         target_net.load_state_dict(policy_net.state_dict())
 
-    if episode % 100 == 0:
-        print(f"Episode {episode}, Reward: {total_reward:.4f}, Epsilon: {epsilon:.4f}")
+    print(f"Episode {episode}, Reward: {total_reward:.4f}, Epsilon: {epsilon:.4f}")
 
 env.close()

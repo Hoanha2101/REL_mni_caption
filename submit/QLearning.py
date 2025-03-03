@@ -3,21 +3,21 @@ import numpy as np
 import random
 import pickle
 
-# Danh sách stocks(width, height)
+# Danh sách stocks (width, height) - Tấm nguyên liệu có kích thước nhỏ, tối đa 200x200
 stocks = [
-    (100, 100),  
-    (80, 60),       
-    (90, 50),    
-    (120, 80),       
+    (50, 50),   (60, 40),   (70, 50),   (80, 60),   (90, 70),
+    (100, 50),  (110, 60),  (120, 80),  (130, 90),  (140, 100),
+    (150, 120), (160, 130), (170, 140), (180, 150), (200, 200)
 ]
 
-# Danh sách products(width, height)
+# Danh sách products (width, height) - Sản phẩm có kích thước nhỏ, phù hợp với stocks
 products = [
-    (20, 10),  
-    (20, 10),  
-    (30, 20),  
-    (40, 30),  
-    (50, 25),  
+    (10, 5),  (15, 10), (20, 10), (25, 15), (30, 20),
+    (35, 20), (40, 30), (45, 25), (50, 30), (55, 35),
+    (20, 15), (25, 10), (30, 15), (35, 20), (40, 25),
+    (45, 30), (50, 35), (55, 40), (60, 45), (65, 50),
+    (70, 30), (75, 40), (80, 50), (85, 55), (90, 60),
+    (15, 10), (20, 15), (25, 20), (30, 25), (35, 30)
 ]
 
 env = CuttingStockEnv(
@@ -164,7 +164,7 @@ for episode in range(num_episodes):
         action = get_action(state)
         env_action = get_env_action(action, observation)
         
-        observation, reward, terminated, truncated, info = env.step(env_action)
+        observation, reward_terminal, terminated, truncated, info = env.step(env_action)
         
         done = terminated
         
@@ -175,11 +175,13 @@ for episode in range(num_episodes):
                 max_start_state = ep_start_state
         
         action_list.append(env_action)
-        ep_reward += reward
+        
 
         next_state = get_state(observation)
         reward = get_reward(observation, info)
-
+        
+        ep_reward += reward
+        
         # Cập nhật Q-table
         Q_table[state, action] = (1 - alpha) * Q_table[state, action] + alpha * (
             reward + gamma * np.max(Q_table[next_state])
@@ -192,7 +194,7 @@ for episode in range(num_episodes):
     epsilon = max(min_epsilon, epsilon * epsilon_decay)
 
 
-    print(f"Episode {episode}, Epsilon: {epsilon:.4f}")
+    print(f"Episode {episode},Reward: {ep_reward:.4f} , Epsilon: {epsilon:.4f}")
         
 # Hiển thị kết quả tốt nhất tìm được
 print("Max reward = ", max_ep_reward)

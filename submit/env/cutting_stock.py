@@ -243,12 +243,17 @@ class CuttingStockEnv(gym.Env):
             self.window = pygame.display.set_mode(window_size)
         if self.clock is None and self.render_mode == "human":
             self.clock = pygame.time.Clock()
+        
         canvas = pygame.Surface(window_size)
         canvas.fill((0, 0, 0))
         pix_square_size = 1
+        
+        # Tạo danh sách màu, thêm phần tử dư phòng tránh lỗi IndexError
         cmap = colormaps.get_cmap("hsv")
         norms = mpl.colors.Normalize(vmin=0, vmax=self.max_product_type - 1)
-        list_colors = [cmap(norms(i)) for i in range(self.max_product_type)]
+        list_colors = [cmap(norms(i))[:3] for i in range(self.max_product_type)]
+        list_colors.extend([(1, 1, 1)] * 10)  # Thêm màu trắng để tránh lỗi index
+        
         for i, stock in enumerate(self._stocks):
             stock_width = int(np.sum(np.any(stock != -2, axis=1)))
             stock_height = int(np.sum(np.any(stock != -2, axis=0)))
@@ -262,37 +267,43 @@ class CuttingStockEnv(gym.Env):
                     stock_height * pix_square_size,
                 ),
             )
+            
             for x in range(stock.shape[0]):
                 for y in range(stock.shape[1]):
                     if stock[x, y] > -1:
-                        color = list_colors[stock[x, y]][:3]
+                        # **Sửa lỗi index bằng cách kiểm tra giới hạn**
+                        if 0 <= stock[x, y] < len(list_colors):
+                            color = list_colors[stock[x, y]]
+                        else:
+                            color = (1, 1, 1)  # Màu trắng nếu lỗi
+                        
                         color = (int(color[0] * 255), int(color[1] * 255), int(color[2] * 255))
+                        
                         pygame.draw.rect(
                             canvas,
                             color,
                             pygame.Rect(
-                                (i % (window_size[0] // self.max_w) * self.max_w + x)
-                                * pix_square_size,
-                                (i // (window_size[0] // self.max_w) * self.max_h + y)
-                                * pix_square_size,
+                                (i % (window_size[0] // self.max_w) * self.max_w + x) * pix_square_size,
+                                (i // (window_size[0] // self.max_w) * self.max_h + y) * pix_square_size,
                                 pix_square_size,
                                 pix_square_size,
                             ),
                         )
+        
+        # Vẽ lưới
         for i in range(window_size[0] // self.max_w):
             pygame.draw.line(
-                canvas,
-                (255, 255, 255),
+                canvas, (255, 255, 255),
                 (i * self.max_w * pix_square_size, 0),
                 (i * self.max_w * pix_square_size, window_size[1]),
             )
         for i in range(window_size[1] // self.max_h):
             pygame.draw.line(
-                canvas,
-                (255, 255, 255),
+                canvas, (255, 255, 255),
                 (0, i * self.max_h * pix_square_size),
                 (window_size[0], i * self.max_h * pix_square_size),
             )
+        
         if self.render_mode == "human":
             self.window.blit(canvas, canvas.get_rect())
             pygame.event.pump()
@@ -300,6 +311,7 @@ class CuttingStockEnv(gym.Env):
             self.clock.tick(self.metadata["render_fps"])
         else:
             return np.transpose(np.array(pygame.surfarray.pixels3d(canvas)), axes=(1, 0, 2))
+
 
     def close(self):
         if self.window is not None:

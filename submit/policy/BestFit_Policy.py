@@ -9,64 +9,60 @@
 
 import numpy as np
 
-
-
 def best_fit_policy(observation, info):
     """
     Best-Fit Algorithm for 2D Cutting-Stock Problem.
     - Tìm stock để lại ít diện tích dư thừa nhất sau khi đặt sản phẩm.
     - Nếu không có stock phù hợp, mở một stock mới.
     """
-    list_prods = observation["products"]
+    list_prods = sorted(observation["products"], key=lambda x: x["size"][0] * x["size"][1], reverse=True)  # Sắp xếp sản phẩm từ lớn đến nhỏ
     list_stocks = observation["stocks"]
-
-    best_stock_idx, best_pos_x, best_pos_y = None, None, None
-    min_remaining_area = float("inf")
 
     for prod in list_prods:
         if prod["quantity"] <= 0:
-            continue
+            continue  # Bỏ qua sản phẩm đã hết
 
         prod_w, prod_h = prod["size"]
 
-        # Duyệt qua từng stock để tìm stock tốt nhất
+        best_stock_idx, best_pos_x, best_pos_y = None, None, None
+        min_remaining_area = float("inf")
+
+        # Duyệt qua từng stock để tìm stock phù hợp nhất
         for idx, stock in enumerate(list_stocks):
             stock_w = np.sum(np.any(stock != -2, axis=1))
             stock_h = np.sum(np.any(stock != -2, axis=0))
 
             if stock_w < prod_w or stock_h < prod_h:
-                continue  # Nếu stock không đủ lớn, bỏ qua
+                continue  # Bỏ qua nếu stock không đủ lớn
 
-            # Tìm vị trí đặt sản phẩm sao cho diện tích dư thừa nhỏ nhất
+            # Tìm vị trí tối ưu để đặt sản phẩm
             for x in range(stock_w - prod_w + 1):
                 for y in range(stock_h - prod_h + 1):
                     if np.all(stock[x:x + prod_w, y:y + prod_h] == -1):
-                        # Tính diện tích dư thừa sau khi đặt sản phẩm
-                        remaining_area = (stock_w * stock_h) - (prod_w * prod_h)
+                        # ✅ Tính diện tích trống còn lại sau khi đặt sản phẩm
+                        remaining_area = np.count_nonzero(stock == -1) - (prod_w * prod_h)
                         if remaining_area < min_remaining_area:
                             best_stock_idx = idx
                             best_pos_x, best_pos_y = x, y
                             min_remaining_area = remaining_area
 
-        if best_stock_idx is None:
-            # Nếu không tìm thấy stock phù hợp, mở một stock mới
-            new_stock_idx = len(list_stocks)
+        # Nếu tìm thấy vị trí tối ưu trong stock hiện tại
+        if best_stock_idx is not None:
+            stock = list_stocks[best_stock_idx]
+            stock[best_pos_x:best_pos_x + prod_w, best_pos_y:best_pos_y + prod_h] = 1  # Đánh dấu vùng đã sử dụng
+            prod["quantity"] -= 1  # Giảm số lượng sản phẩm
             return {
-                "stock_idx": new_stock_idx,
+                "stock_idx": best_stock_idx,
                 "size": (prod_w, prod_h),
-                "position": (0, 0)
+                "position": (best_pos_x, best_pos_y)
             }
 
-        # Trả về hành động tốt nhất tìm được
-        return {
-            "stock_idx": best_stock_idx,
-            "size": (prod_w, prod_h),
-            "position": (best_pos_x, best_pos_y)
-        }
-
+    # Nếu không có stock nào phù hợp, mở stock mới
+    new_stock_idx = len(list_stocks)
     return {
-        "stock_idx": 0,
-        "size": (0, 0),
+        "stock_idx": new_stock_idx,
+        "size": (prod_w, prod_h),
         "position": (0, 0)
-    }  # Nếu không còn sản phẩm nào cần cắt
+    }
+
 
