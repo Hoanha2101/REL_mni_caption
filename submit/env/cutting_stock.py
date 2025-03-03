@@ -21,7 +21,7 @@ class CuttingStockEnv(gym.Env):
     Nếu không truyền vào các list này, môi trường sẽ tạo dữ liệu ngẫu nhiên
     """
     
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 500}
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 25}
 
     def __init__(
         self,
@@ -175,107 +175,6 @@ class CuttingStockEnv(gym.Env):
             self._render_frame()
         return observation, info
     
-    # def step(self, action):
-    #     stock_idx = action["stock_idx"]
-    #     size = action["size"]
-    #     position = action["position"]
-    #     width, height = size
-    #     x, y = position
-
-    #     product_idx = None
-    #     for i, product in enumerate(self._products):
-    #         if np.array_equal(product["size"], size) or np.array_equal(product["size"], size[::-1]):
-    #             if product["quantity"] == 0:
-    #                 continue
-    #             product_idx = i
-    #             break
-
-    #     if product_idx is not None and 0 <= stock_idx < self.num_stocks:
-    #         stock = self._stocks[stock_idx]
-    #         stock_width = np.sum(np.any(stock != -2, axis=1))
-    #         stock_height = np.sum(np.any(stock != -2, axis=0))
-
-    #         if x >= 0 and y >= 0 and x + width <= stock_width and y + height <= stock_height:
-    #             if np.all(stock[x:x + width, y:y + height] == -1):
-    #                 self.cutted_stocks[stock_idx] = 1
-    #                 stock[x:x + width, y:y + height] = product_idx
-    #                 self._products[product_idx]["quantity"] -= 1
-
-    #     # Tính điểm
-    #     reward = 0
-    #     terminated = all([product["quantity"] == 0 for product in self._products])
-    #     reward += 1 if terminated else 0
-
-    #     # Kiểm tra chồng chéo
-    #     if product_idx is not None and not np.all(stock[x:x + width, y:y + height] == -1):
-    #         reward -= 25
-    #     else:
-    #         reward += 5
-
-    #     # Sắp xếp danh sách stock theo diện tích giảm dần (ưu tiên lớn trước)
-    #     sorted_stocks = sorted(enumerate(self._stocks), key=lambda x: x[1].shape[0] * x[1].shape[1], reverse=True)
-
-    #     # Xác định stock lớn nhất có thể chứa sản phẩm
-    #     suitable_stock_idx = None
-    #     for i, (idx, stock) in enumerate(sorted_stocks):
-    #         if width <= stock.shape[0] and height <= stock.shape[1]:
-    #             suitable_stock_idx = idx
-    #             break  # Tìm thấy stock đầu tiên có thể chứa, dừng lại
-
-    #     # Kiểm tra nếu đặt vào stock phù hợp nhất
-    #     if stock_idx == suitable_stock_idx:
-    #         reward += 7  # Ưu tiên đặt vào stock to nhất có thể chứa
-    #     else:
-    #         reward -= 35  # Phạt nếu có stock lớn hơn có thể chứa nhưng không dùng
-
-            
-    #     stock = self._stocks[stock_idx]
-        
-    #     if stock[0, 0] == -1:
-    #         if x == 0 and y == 0:
-    #             reward += 2  # Nếu product đặt tại (0,0) -> +2 điểm
-    #         else:
-    #             reward -= 6  # Nếu product không đặt tại (0,0) -> -6 điểm
-
-    #     # Kiểm tra tính liền kề
-    #     if x == 0 or np.any(stock[x - 1, y:y + height] != -1):
-    #         reward += 2
-    #     else:
-    #         reward -= 6
-            
-    #     stock_width = np.sum(np.any(stock != -2, axis=1))
-    #     stock_height = np.sum(np.any(stock != -2, axis=0))
-        
-        
-    #     # Kiểm tra phạm vi biên
-    #     if x + width > stock_width or y + height > stock_height:
-    #         reward -= 25
-
-    #     # Tính điểm phần dư thừa trên mỗi stock
-    #     # remaining_area = np.sum(stock == -1)
-    #     # total_area = stock.shape[0] * stock.shape[1]
-    #     # remaining_ratio = remaining_area / total_area
-        
-    #     # if remaining_ratio <= 0.25:
-    #     #     reward += 5
-    #     # elif remaining_ratio <= 0.5:
-    #     #     reward += 3
-    #     # elif remaining_ratio <= 0.75:
-    #     #     reward -= 2
-    #     # else:
-    #     #     reward -= 5
-
-    #     # Tính điểm toàn cục
-    #     unused_stocks = self.num_stocks - np.sum(self.cutted_stocks)
-    #     reward += unused_stocks * 5
-
-    #     observation = self._get_obs()
-    #     info = self._get_info()
-
-    #     if self.render_mode == "human":
-    #         self._render_frame()
-
-    #     return observation, reward, terminated, False, info
     def step(self, action):
         stock_idx = action["stock_idx"]
         size = action["size"]
