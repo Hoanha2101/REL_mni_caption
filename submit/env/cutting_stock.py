@@ -21,7 +21,7 @@ class CuttingStockEnv(gym.Env):
     Nếu không truyền vào các list này, môi trường sẽ tạo dữ liệu ngẫu nhiên
     """
     
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 25}
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 500}
 
     def __init__(
         self,

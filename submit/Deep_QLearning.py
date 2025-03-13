@@ -1,11 +1,13 @@
+import random
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import numpy as np
-import random
-import pickle
+import torch.nn.functional as F
 from collections import deque
 from env.cutting_stock import CuttingStockEnv
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Danh sách stocks (width, height) - Tấm nguyên liệu có kích thước nhỏ, tối đa 200x200
 stocks = [
@@ -24,155 +26,143 @@ products = [
     (15, 10), (20, 15), (25, 20), (30, 25), (35, 30)
 ]
 
-env = CuttingStockEnv(
-    render_mode=None,  # hoặc "human" nếu muốn xem trực quan
-    max_w=120,
-    max_h=120,
-    seed=42,
-    stock_list=stocks,
-    product_list=products,
-)
+env = CuttingStockEnv(render_mode="human", max_w=250, max_h=250, seed=42, stock_list=stocks, product_list=products)
 
-# **Tham số DQN**
-state_size = 3  # Số features đầu vào (tổng diện tích trống, số sản phẩm chưa cắt, số stock đã sử dụng)
-action_size = 500  # Giới hạn số lượng hành động có thể có
-learning_rate = 0.001
-gamma = 0.95  # Discount factor
-epsilon = 1.0  # Epsilon-greedy
-epsilon_decay = 0.995
-min_epsilon = 0.01
-num_episodes = 5000
-batch_size = 32
-memory_size = 10000
-update_target_frequency = 50  # Mỗi bao nhiêu tập thì cập nhật Target Network
+# Hyperparameters
+alpha = 0.1 
+gamma = 0.9  
+epsilon = 1.0  
+epsilon_decay = 0.995  
+min_epsilon = 0.01 
+num_episodes = 100  
+update_targetnn_rate = 10
+BATCH_SIZE = 32
+LR = 1e-4
 
-# **Replay Buffer**
-memory = deque(maxlen=memory_size)
+state_size = 3  # [empty_space, remaining_products, unused_stocks]
+action_size = 1000  # Giả sử có 10 hành động (cắt sản phẩm từ stock)
 
-# **Mô hình Deep Q-Network (DQN)**
+# DQN Model
 class DQN(nn.Module):
-    def __init__(self, state_size, action_size):
+    def __init__(self, n_observations, n_actions):
         super(DQN, self).__init__()
-        self.fc1 = nn.Linear(state_size, 64)
-        self.fc2 = nn.Linear(64, 64)
-        self.fc3 = nn.Linear(64, action_size)
-
+        self.fc1 = nn.Linear(n_observations, 128)
+        self.fc2 = nn.Linear(128, 128)
+        self.fc3 = nn.Linear(128, n_actions)
+    
     def forward(self, x):
         x = torch.relu(self.fc1(x))
         x = torch.relu(self.fc2(x))
         return self.fc3(x)
 
-# **Khởi tạo mạng**
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 policy_net = DQN(state_size, action_size).to(device)
 target_net = DQN(state_size, action_size).to(device)
-target_net.load_state_dict(policy_net.state_dict())  # Đồng bộ target_net với policy_net
-target_net.eval()
+target_net.load_state_dict(policy_net.state_dict())
 
-optimizer = optim.Adam(policy_net.parameters(), lr=learning_rate)
-loss_fn = nn.MSELoss()
+optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
+replay_buffer = deque(maxlen=10000)
 
-# **Hàm chuyển trạng thái thành vector**
 def get_state(observation):
+    """
+    Chuyển trạng thái từ môi trường thành vector tensor để dùng cho DQN.
+    """
     stocks = observation["stocks"]
     products = observation["products"]
-
+    
     empty_space = sum(np.sum(stock == -1) for stock in stocks)
     remaining_products = sum(prod["quantity"] for prod in products)
-    num_stocks_used = sum(1 for stock in stocks if np.any(stock != -2))
+    unused_stocks = sum(1 for stock in stocks if np.all(stock == -1))
+    
+    state_vector = torch.tensor([empty_space, remaining_products, unused_stocks], dtype=torch.float32, device=device)
+    return state_vector
 
-    return np.array([empty_space, remaining_products, num_stocks_used], dtype=np.float32)
-
-# **Hàm lấy danh sách hành động hợp lệ**
-def get_valid_actions(observation):
-    actions = []
-    for stock_idx, stock in enumerate(observation["stocks"]):
-        stock_w = np.sum(np.any(stock != -2, axis=1))
-        stock_h = np.sum(np.any(stock != -2, axis=0))
-
-        for prod_idx, prod in enumerate(observation["products"]):
-            if prod["quantity"] <= 0:
-                continue
-            prod_w, prod_h = prod["size"]
-
-            if prod_w <= stock_w and prod_h <= stock_h:
-                actions.append((stock_idx, prod_idx, 0, 0))
-    return actions
-
-# **Hàm chọn hành động theo epsilon-greedy**
-def get_action(state, valid_actions):
-    if np.random.rand() < epsilon:
-        return random.choice(valid_actions)  
+def get_action(state):
+    """
+    Chọn hành động theo chính sách epsilon-greedy.
+    """
+    if random.uniform(0, 1) < epsilon:
+        return random.randint(0, action_size - 1)
     else:
-        state_tensor = torch.tensor(state, dtype=torch.float32).to(device)
         with torch.no_grad():
-            q_values = policy_net(state_tensor)
-            return valid_actions[np.argmax(q_values[:len(valid_actions)])]  
+            return policy_net(state.unsqueeze(0)).argmax(dim=1).item()
 
-# **Hàm tính phần thưởng**
-def get_reward(observation, info):
-    filled_ratio = info["filled_ratio"]
-    trim_loss = info["trim_loss"]
-    num_stocks_used = sum(1 for stock in observation["stocks"] if np.any(stock != -2))
-    total_stocks = len(observation["stocks"])
-    num_stocks_unused = total_stocks - num_stocks_used
-    lambda_bonus = 0.2  
-    stock_bonus = lambda_bonus * (num_stocks_unused / total_stocks)  
-    reward = (filled_ratio - trim_loss) + stock_bonus
-    return reward
+def get_env_action(action, observation):
+    """
+    Chuyển action từ Q-table thành action thực tế cho môi trường Gym.
+    """
+    list_prods = observation["products"]
+    list_stocks = observation["stocks"]
 
-# **Huấn luyện bằng DQN**
+    if not list_prods or not list_stocks:
+        return {"stock_idx": 0, "size": (0, 0), "position": (0, 0)}
+
+    # Chọn sản phẩm có thể cắt
+    prod_idx = action % len(list_prods)
+    prod = list_prods[prod_idx]
+
+    if prod["quantity"] == 0:
+        return {"stock_idx": 0, "size": (0, 0), "position": (0, 0)}
+
+    prod_w, prod_h = prod["size"]
+
+    # Chọn stock phù hợp
+    suitable_stocks = [i for i, stock in enumerate(list_stocks) if np.sum(stock == -1) >= prod_w * prod_h]
+    stock_idx = suitable_stocks[0] if suitable_stocks else 0
+
+    stock = list_stocks[stock_idx]
+    stock_w = np.sum(np.any(stock != -2, axis=1))
+    stock_h = np.sum(np.any(stock != -2, axis=0))
+
+    # Chọn vị trí trong stock
+    for x in range(stock_w - prod_w + 1):
+        for y in range(stock_h - prod_h + 1):
+            if np.all(stock[x:x + prod_w, y:y + prod_h] == -1):
+                return {"stock_idx": stock_idx, "size": (prod_w, prod_h), "position": (x, y)}
+
+    return {"stock_idx": 0, "size": (0, 0), "position": (0, 0)}
+
 for episode in range(num_episodes):
-    observation, info = env.reset()
+    print("episode:", episode)
+    observation, _ = env.reset(seed=42)
     state = get_state(observation)
-    total_reward = 0
-    done = False
-
-    for _ in range(200):  
-        valid_actions = get_valid_actions(observation)
-        if not valid_actions:
-            break
-
-        action = get_action(state, valid_actions)
-        env_action = {"stock_idx": action[0], "size": observation["products"][action[1]]["size"], "position": (action[2], action[3])}
-
-        observation, reward, terminated, truncated, info = env.step(env_action)
+    
+    while True:
+        action = get_action(state)
+        env_action = get_env_action(action, observation)
+        observation, reward, terminated, truncated, _ = env.step(env_action)
         next_state = get_state(observation)
-        reward = get_reward(observation, info)
-
-        memory.append((state, action, reward, next_state, terminated))
-        state = next_state
-        total_reward += reward
-        done = terminated or truncated
-
-        if done:
+        
+        replay_buffer.append((state, action, reward, next_state, terminated))
+        
+        if len(replay_buffer) > BATCH_SIZE:
+            minibatch = random.sample(replay_buffer, BATCH_SIZE)
+            states, actions, rewards, next_states, dones = zip(*minibatch)
+            
+            states = torch.stack(states).to(device)
+            actions = torch.tensor(actions, dtype=torch.long, device=device).unsqueeze(1)
+            rewards = torch.tensor(rewards, dtype=torch.float32, device=device).unsqueeze(1)
+            next_states = torch.stack(next_states).to(device)
+            dones = torch.tensor(dones, dtype=torch.float32, device=device).unsqueeze(1)
+            
+            q_values = policy_net(states).gather(1, actions)
+            with torch.no_grad():
+                max_next_q_values = target_net(next_states).max(1)[0].unsqueeze(1)
+                target_q_values = rewards + (gamma * max_next_q_values * (1 - dones))
+            
+            loss = F.mse_loss(q_values, target_q_values)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+        
+        if terminated:
             break
-
+        state = next_state
+    
+    # Giảm epsilon sau mỗi episode
     epsilon = max(min_epsilon, epsilon * epsilon_decay)
 
-    if len(memory) > batch_size:
-        batch = random.sample(memory, batch_size)
-        states, actions, rewards, next_states, dones = zip(*batch)
-
-        states = torch.tensor(np.array(states), dtype=torch.float32).to(device)
-        actions = torch.tensor(actions, dtype=torch.long).to(device)
-        rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
-        next_states = torch.tensor(np.array(next_states), dtype=torch.float32).to(device)
-
-        dones = torch.tensor(dones, dtype=torch.float32).to(device)
-
-        Q_values = policy_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
-        next_Q_values = target_net(next_states).max(1)[0]
-        target_Q_values = rewards + (gamma * next_Q_values * (1 - dones))
-
-        loss = loss_fn(Q_values, target_Q_values.detach())
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-    if episode % update_target_frequency == 0:
+    
+    if episode % update_targetnn_rate == 0:
         target_net.load_state_dict(policy_net.state_dict())
 
-    print(f"Episode {episode}, Reward: {total_reward:.4f}, Epsilon: {epsilon:.4f}")
-
-env.close()
+print("Training Completed!")

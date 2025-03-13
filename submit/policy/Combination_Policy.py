@@ -20,7 +20,7 @@ def first_fit_placement(observation):
     list_prods = sorted(observation["products"], key=lambda x: x["size"][0] * x["size"][1], reverse=True)
     list_stocks = sorted(observation["stocks"], key=lambda x: np.sum(x != -2), reverse=True)
 
-    for prod in list_prods:
+    for product_idx, prod in enumerate(list_prods):  # Dùng product_idx để phân biệt màu
         if prod["quantity"] <= 0:
             continue  # Bỏ qua sản phẩm đã hết
 
@@ -36,11 +36,13 @@ def first_fit_placement(observation):
             for x in range(stock_w - prod_w + 1):
                 for y in range(stock_h - prod_h + 1):
                     if np.all(stock[x:x + prod_w, y:y + prod_h] == -1):
-                        stock[x:x + prod_w, y:y + prod_h] = 1  # Đánh dấu vùng đã sử dụng
+                        stock[x:x + prod_w, y:y + prod_h] = product_idx + 2  # Sử dụng product_idx + 2
                         prod["quantity"] -= 1  # Giảm số lượng sản phẩm
                         return {"stock_idx": idx, "size": (prod_w, prod_h), "position": (x, y)}
 
-    return None  
+    return None
+
+ 
 
 
 def best_fit_refinement(observation):
@@ -53,15 +55,15 @@ def best_fit_refinement(observation):
     best_action = None
     min_sij = float("inf")
 
-    for stock_idx, stock in enumerate(list_stocks):
-        stock_w = np.sum(np.any(stock != -2, axis=1))
-        stock_h = np.sum(np.any(stock != -2, axis=0))
+    for product_idx, prod in enumerate(list_prods):  # Sử dụng index sản phẩm để phân biệt màu
+        if prod["quantity"] <= 0:
+            continue  
 
-        for prod in list_prods:
-            if prod["quantity"] <= 0:
-                continue  
+        prod_w, prod_h = prod["size"]
 
-            prod_w, prod_h = prod["size"]
+        for stock_idx, stock in enumerate(list_stocks):
+            stock_w = np.sum(np.any(stock != -2, axis=1))
+            stock_h = np.sum(np.any(stock != -2, axis=0))
 
             if stock_w < prod_w or stock_h < prod_h:
                 continue  
@@ -74,8 +76,12 @@ def best_fit_refinement(observation):
                         if sij < min_sij:
                             best_action = {"stock_idx": stock_idx, "size": (prod_w, prod_h), "position": (x, y)}
                             min_sij = sij
+                            stock[x:x + prod_w, y:y + prod_h] = product_idx + 2  # Gán ID riêng
+                            prod["quantity"] -= 1
 
-    return best_action  
+    return best_action
+
+
 
 
 def stock_merging(observation):

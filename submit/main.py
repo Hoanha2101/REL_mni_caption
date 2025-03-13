@@ -34,8 +34,8 @@ if __name__ == "__main__":
     observation, info = env.reset()
     while not done:
         # action = FirstFit_Policy.first_fit_policy(observation, info)
-        action = BestFit_Policy.best_fit_policy(observation, info)
-        # action = Combination_Policy.combination_policy(observation, info)
+        # action = BestFit_Policy.best_fit_policy(observation, info)
+        action = Combination_Policy.combination_policy(observation, info)
         observation, reward, done, truncated, info = env.step(action)
     env.close()
 
