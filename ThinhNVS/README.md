@@ -4,12 +4,14 @@
 Dự án này triển khai giải pháp cho bài toán Cutting Stock (Cắt vật liệu) sử dụng phương pháp Deep Q-Learning. Hệ thống được thiết kế để tối ưu hóa việc cắt các sản phẩm từ các tấm vật liệu có sẵn, giảm thiểu lãng phí và tối đa hóa hiệu quả sử dụng.
 
 ## Cấu trúc dự án 
+```bash
 ├── agents/
 │ └── deep_qlearning_agent.py
 ├── env/
 │ └── CuttingStockEnvOptimized.py
 ├── train_dqlearning.py
 └── README.md
+```
 
 ## Các thành phần chính
 
