@@ -5,15 +5,15 @@ import random
 num_batches = 10
 
 # Kích thước tối đa của stock
-max_width = 200
-max_height = 200
+max_width = 50
+max_height = 50
 
 # Hàm tạo danh sách stocks (cố định 10 stocks)
 def generate_stocks():
     stocks = []
     for _ in range(10):  # Số lượng stocks cố định là 10
-        width = random.randint(50, max_width)
-        height = random.randint(50, max_height)
+        width = random.randint(10, max_width)
+        height = random.randint(10, max_height)
         stocks.append((width, height))
     return stocks
 
@@ -26,8 +26,8 @@ def generate_products(stocks):
     num_products = random.randint(10, 20)  # Số lượng sản phẩm dao động từ 10 đến 20
     
     while len(products) < num_products and total_product_area < total_stock_area * 0.6:
-        width = random.randint(10, 90)
-        height = random.randint(5, 60)
+        width = random.randint(5, 20)
+        height = random.randint(5, 20)
         area = width * height
 
         if total_product_area + area <= total_stock_area:
@@ -55,4 +55,3 @@ for batch_id in range(1, num_batches + 1):
 df = pd.DataFrame(batch_data, columns=["batch_id", "type", "width", "height"])
 csv_filename = "data/data_custom.csv"
 df.to_csv(csv_filename, index=False)
-

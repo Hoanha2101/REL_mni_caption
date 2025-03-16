@@ -33,8 +33,8 @@ for batch_id in batch_ids:
         # Khởi tạo môi trường
         env = CuttingStockEnv(
             render_mode="human",
-            max_w=200,
-            max_h=200,
+            max_w=50,
+            max_h=50,
             seed=42,
             stock_list=stock_list,
             product_list=product_list,
