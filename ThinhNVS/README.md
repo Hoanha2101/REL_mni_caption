@@ -85,9 +85,9 @@ max_product_per_type=5 # Số lượng tối đa mỗi loại
 ## Kết quả trực quan
 - Quá trình huấn luyện được lưu dưới dạng GIF trong thư mục `demo/`
 - Ba loại GIF được tạo ra:
-  - combine.gif: Tổng hợp quá trình
-  - bestfit.gif: Kết quả tốt nhất
-  - firstfit.gif: Kết quả đầu tiên đạt được
+  - `combine.gif`: Tổng hợp quá trình
+  - `bestfit.gif`: Kết quả tốt nhất
+  - `firstfit.gif`: Kết quả đầu tiên đạt được
 
 ## Lưu ý
 - Checkpoint được lưu tự động mỗi 500 episode
