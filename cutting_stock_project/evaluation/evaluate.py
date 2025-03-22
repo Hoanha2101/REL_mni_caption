@@ -1,182 +1,162 @@
-# evaluation/evaluate_no_maxstep.py
-
+import os
 import time
+import pickle
 import numpy as np
 import matplotlib.pyplot as plt
-import pickle
-import os
-import gymnasium as gym
 
 from env.CuttingStockEnvOptimized import CuttingStockEnvOptimized
 from agents.q_learning_agent import QLearningAgent
 from data.static_data import STATIC_DATA
 
-def load_q_table(checkpoint_path):
-    """Tải Q-table từ file checkpoint."""
-    with open(checkpoint_path, "rb") as f:
-        q_table = pickle.load(f)
-    return q_table
-
-def evaluate_single_batch(agent, batch_id, render_mode=None, show_final_layout=False):
+def get_reward(observation, info):
     """
-    Đánh giá một episode cho batch_id sử dụng agent đã load Q-table từ checkpoint,
-    không giới hạn số bước (chạy cho đến khi environment báo terminated).
-
-    Trả về dict chứa các metric:
-      - runtime: thời gian chạy (seconds)
-      - total_trim_loss: tổng trim loss (số ô -1 trên các stock đã sử dụng)
-      - remaining_stock: số stock chưa bị cắt (tất cả ô bên trong là -1)
-      - used_stocks: số stock đã được sử dụng (có ít nhất một ô khác -1)
-      - avg_used_stock_area: trung bình diện tích của các stock đã được sử dụng
-      - steps: số bước thực hiện trong episode
-      - total_reward: tổng reward tích lũy theo env.step
+    Tính reward dựa trên filled_ratio, trim_loss và bonus cho stock chưa dùng.
     """
+    filled_ratio = info["filled_ratio"]
+    trim_loss = info["trim_loss"]
+    total_stocks = len(observation["stocks"])
+    num_stocks_used = sum(1 for stock in observation["stocks"] if (stock != -2).any())
+    num_stocks_unused = total_stocks - num_stocks_used
+    lambda_bonus = 0.2
+    stock_bonus = lambda_bonus * (num_stocks_unused / total_stocks)
+    return (filled_ratio - trim_loss) + stock_bonus
+
+def evaluate_one_batch(batch_id, state_size=100000, action_size=1000, max_steps=10000):
+    """
+    Đánh giá một batch bằng cách:
+      - Load checkpoint của batch từ file pickle.
+      - Nếu checkpoint chứa key "best_action_list" (và danh sách không rỗng),
+        replay chuỗi action đó.
+      - Nếu không, chạy một episode mới dựa trên Q-table (epsilon=0) với giới hạn max_steps.
+      - Tính tổng reward và số bước theo cách tính reward giống lúc train.
+      - Lấy ảnh cuối của môi trường (render_mode="rgb_array").
+    
+    Trả về:
+      - final_frame (np.ndarray): Ảnh cuối của môi trường.
+      - metrics (dict): { "batch_id": batch_id, "steps": steps, "total_reward": total_reward }.
+    """
+    checkpoint_filename = f"checkpoints/q_learning/csv_train/q_table_checkpoint_batch{batch_id}.pkl"
+    if not os.path.exists(checkpoint_filename):
+        print(f"[ERROR] Checkpoint file cho batch {batch_id} không tồn tại.")
+        return None, {"batch_id": batch_id, "steps": 0, "total_reward": 0.0}
+    
+    with open(checkpoint_filename, "rb") as f:
+        checkpoint = pickle.load(f)
+    
+    # Nếu checkpoint là dictionary, lấy Q_table và best_action_list nếu có.
+    if isinstance(checkpoint, dict):
+        Q_table = checkpoint.get("Q_table", None)
+        best_action_list = checkpoint.get("best_action_list", None)
+    else:
+        Q_table = checkpoint
+        best_action_list = None
+    
+    if Q_table is None:
+        print(f"[ERROR] Trong checkpoint của batch {batch_id}, key 'Q_table' không tồn tại.")
+        return None, {"batch_id": batch_id, "steps": 0, "total_reward": 0.0}
+    
+    # Khởi tạo môi trường với cấu hình giống lúc train
     static_config = STATIC_DATA[batch_id]
-    stock_list = static_config["stocks"]
-    product_list = static_config["products"]
-
-    # Sử dụng kích thước môi trường cố định (bạn có thể điều chỉnh nếu cần)
-    max_w, max_h = 50, 50
-
     env = CuttingStockEnvOptimized(
-        render_mode=render_mode,
-        max_w=max_w,
-        max_h=max_h,
-        seed=42,
-        stock_list=stock_list,
-        product_list=product_list,
+        render_mode="rgb_array",
+        max_w=50,
+        max_h=50,
+        stock_list=static_config["stocks"],
+        product_list=static_config["products"],
+        seed=42
     )
-
-    obs, info = env.reset()
-    start_time = time.time()
-    total_reward = 0
+    
+    # Reset môi trường
+    observation, info = env.reset(seed=42)
+    total_reward = 0.0
     steps = 0
-    done = False
 
-    # Vòng lặp evaluate không giới hạn số bước (chỉ dừng khi terminated)
-    while not done:
-        state = agent.get_state(obs)
-        action_idx = agent.get_action(state)
-        env_action = agent.get_env_action(action_idx, obs)
-        obs, reward, done, _, info = env.step(env_action)
-        total_reward += reward
-        steps += 1
+    # Khởi tạo agent với epsilon=0 (tham lam) và gán Q_table đã load
+    agent = QLearningAgent(
+        state_size=state_size,
+        action_size=action_size,
+        alpha=0.1,
+        gamma=0.9,
+        epsilon=0.0,
+        epsilon_decay=1.0,
+        min_epsilon=0.0
+    )
+    agent.Q_table = Q_table
 
-    end_time = time.time()
-    runtime = end_time - start_time
+    # Nếu có best_action_list (đã lưu từ training) và không rỗng, replay chuỗi action đó.
+    if best_action_list and len(best_action_list) > 0:
+        print(f"[INFO] Batch {batch_id}: Replay best_action_list (length = {len(best_action_list)})")
+        for act in best_action_list:
+            observation, reward_terminal, terminated, truncated, info = env.step(act)
+            step_reward = get_reward(observation, info)
+            total_reward += step_reward
+            steps += 1
+            if terminated or truncated:
+                break
+    else:
+        # Nếu không có best_action_list, chạy một episode mới với max_steps (mặc định 10,000 bước)
+        print(f"[INFO] Batch {batch_id}: Không có best_action_list, chạy episode mới với max_steps={max_steps}")
+        done = False
+        while not done and steps < max_steps:
+            state = agent.get_state(observation)
+            action_idx = agent.get_action(state)
+            env_action = agent.get_env_action(action_idx, observation)
+            observation, reward_terminal, terminated, truncated, info = env.step(env_action)
+            step_reward = get_reward(observation, info)
+            total_reward += step_reward
+            steps += 1
+            done = terminated or truncated
 
-    # Tính toán metric:
-    total_trim_loss = sum((stock == -1).sum() for stock in env._stocks if np.any(stock[stock != -2] != -1))
-    remaining_stock = sum(1 for stock in env._stocks if np.all(stock[stock != -2] == -1))
-    used_stocks = len(env._stocks) - remaining_stock
-    used_stock_areas = [np.sum(stock != -2) for stock in env._stocks if np.any(stock[stock != -2] != -1)]
-    avg_used_stock_area = sum(used_stock_areas) / len(used_stock_areas) if used_stock_areas else 0
-
-    if show_final_layout and render_mode == "human":
-        print(f"[INFO] Showing final layout for batch {batch_id}...")
-        env.render()
-        input("Nhấn Enter để đóng cửa sổ và tiếp tục...")
-
+    final_frame = env.render()  # Lấy ảnh cuối (RGB array)
     env.close()
 
-    return {
+    metrics = {
         "batch_id": batch_id,
         "steps": steps,
-        "runtime": runtime,
-        "total_trim_loss": total_trim_loss,
-        "remaining_stock": remaining_stock,
-        "used_stocks": used_stocks,
-        "avg_used_stock_area": avg_used_stock_area,
-        "total_reward": total_reward,
+        "total_reward": total_reward
     }
+    return final_frame, metrics
 
-def main():
-    # Đường dẫn tới file Q-table checkpoint đã huấn luyện
-    checkpoint_path = os.path.join("checkpoints", "q_learning", "q_table_checkpoint_new.pkl")
-    if not os.path.exists(checkpoint_path):
-        print("[ERROR] Checkpoint file không tồn tại. Vui lòng huấn luyện trước hoặc kiểm tra lại đường dẫn.")
-        return
-
-    # Khởi tạo agent với các tham số giống lúc training
-    agent = QLearningAgent(state_size=100000, action_size=1000,
-                           alpha=0.1, gamma=0.9, epsilon=0.0,
-                           epsilon_decay=0.995, min_epsilon=0.01)
-    agent.Q_table = load_q_table(checkpoint_path)
-    print("Loaded Q-table từ checkpoint:", checkpoint_path)
-
-    # Danh sách batch_id cần đánh giá (ví dụ: từ 1 đến 10)
-    batch_ids = list(range(1, 11))
-    results = []
-
-    # Nếu muốn hiển thị bố trí cuối cùng trên pygame, đặt True; render_mode sẽ được "human"
-    show_final_layout = False
-    chosen_render_mode = "human" if show_final_layout else None
-
-    for bid in batch_ids:
-        print(f"Đánh giá batch {bid}...")
-        result = evaluate_single_batch(agent, bid, render_mode=chosen_render_mode, show_final_layout=show_final_layout)
-        results.append(result)
+def evaluate_all_batches(state_size=100000, action_size=1000, max_steps=100000):
+    """
+    Đánh giá 10 batch bằng cách:
+      - Load checkpoint cho từng batch từ 1 đến 10.
+      - Nếu checkpoint có best_action_list, replay chính xác chuỗi action đó.
+      - Nếu không, chạy một episode mới với giới hạn max_steps.
+      - Thu thập ảnh cuối và metrics (steps, total_reward) cho mỗi batch.
+      - Vẽ một Figure dạng grid 2 hàng x 5 cột hiển thị ảnh cuối và thông tin của mỗi batch.
+    """
+    frames = []
+    metrics_list = []
     
-    # In bảng số liệu chi tiết
-    print("\n===== Detailed Results =====")
-    header = ("Batch", "Policy", "Steps", "Runtime(s)", "TotalTrimLoss", "Remaining", "UsedStocks", "AvgUsedArea", "TotalReward")
-    print("{:<6s} {:<15s} {:<7s} {:<12s} {:<15s} {:<10s} {:<11s} {:<12s} {:<12s}".format(*header))
-    for r in results:
-        print("{:<6d} {:<15s} {:<7d} {:<12.3f} {:<15d} {:<10d} {:<11d} {:<12.3f} {:<12.3f}".format(
-            r["batch_id"], "QLearnAgent", r["steps"], r["runtime"],
-            r["total_trim_loss"], r["remaining_stock"], r["used_stocks"],
-            r["avg_used_stock_area"], r["total_reward"]
-        ))
+    for batch_id in range(1, 11):
+        print(f"\n=== Đang đánh giá Batch {batch_id} ===")
+        frame, met = evaluate_one_batch(batch_id, state_size, action_size, max_steps)
+        frames.append(frame)
+        metrics_list.append(met)
     
-    # Vẽ biểu đồ các metric
-    batch_ids_plot = [r["batch_id"] for r in results]
-    runtimes = [r["runtime"] for r in results]
-    trim_losses = [r["total_trim_loss"] for r in results]
-    remainings = [r["remaining_stock"] for r in results]
-    useds = [r["used_stocks"] for r in results]
-    avg_used_areas = [r["avg_used_stock_area"] for r in results]
-    steps_list = [r["steps"] for r in results]
-    total_rewards = [r["total_reward"] for r in results]
-
-    fig, axes = plt.subplots(1, 7, figsize=(28, 4))
+    # Vẽ grid 2x5
+    fig, axs = plt.subplots(2, 5, figsize=(20, 8))
+    fig.suptitle("Final Cutting Layouts (Replay Best Actions) của 10 Batch", fontsize=16)
     
-    axes[0].plot(batch_ids_plot, runtimes, marker='o')
-    axes[0].set_title("Runtime (s)")
-    axes[0].set_xlabel("Batch ID")
-    axes[0].set_ylabel("Time (s)")
-
-    axes[1].plot(batch_ids_plot, trim_losses, marker='o', color='orange')
-    axes[1].set_title("Total Trim Loss")
-    axes[1].set_xlabel("Batch ID")
-    axes[1].set_ylabel("Trim Loss (cells)")
-
-    axes[2].plot(batch_ids_plot, remainings, marker='o', color='green')
-    axes[2].set_title("Remaining Stocks")
-    axes[2].set_xlabel("Batch ID")
-    axes[2].set_ylabel("Stocks")
-
-    axes[3].plot(batch_ids_plot, useds, marker='o', color='red')
-    axes[3].set_title("Used Stocks")
-    axes[3].set_xlabel("Batch ID")
-    axes[3].set_ylabel("Stocks")
-
-    axes[4].plot(batch_ids_plot, avg_used_areas, marker='o', color='purple')
-    axes[4].set_title("Avg Used Stock Area")
-    axes[4].set_xlabel("Batch ID")
-    axes[4].set_ylabel("Area (cells)")
-
-    axes[5].plot(batch_ids_plot, steps_list, marker='o', color='brown')
-    axes[5].set_title("Steps per Episode")
-    axes[5].set_xlabel("Batch ID")
-    axes[5].set_ylabel("Steps")
-
-    axes[6].plot(batch_ids_plot, total_rewards, marker='o', color='magenta')
-    axes[6].set_title("Total Reward")
-    axes[6].set_xlabel("Batch ID")
-    axes[6].set_ylabel("Reward")
-
+    for i, (frame, met) in enumerate(zip(frames, metrics_list)):
+        ax = axs[i // 5, i % 5]
+        if frame is None:
+            ax.text(0.5, 0.5, f"Batch {met['batch_id']}\nNo checkpoint", ha="center", va="center", fontsize=12)
+            ax.axis("off")
+        else:
+            ax.imshow(frame)
+            # ax.set_title(f"Batch {met['batch_id']}\nSteps: {met['steps']}\nReward: {met['total_reward']:.2f}")
+            ax.set_title(f"Batch {met['batch_id']}")
+            ax.axis("off")
+    
     plt.tight_layout()
+    plt.savefig("evaluation_all_batches.png")
     plt.show()
+    
+    # print("\nTóm tắt Metrics:")
+    # for met in metrics_list:
+    #     print(f"Batch {met['batch_id']}: Steps = {met['steps']}, Total Reward = {met['total_reward']:.2f}")
 
 if __name__ == "__main__":
-    main()
+    evaluate_all_batches()

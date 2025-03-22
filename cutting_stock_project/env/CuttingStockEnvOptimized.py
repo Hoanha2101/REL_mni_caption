@@ -172,22 +172,14 @@ class CuttingStockEnvOptimized(gym.Env):
         return obs, info
 
     def step(self, action):
-        """
-        Takes a step in the environment based on the action.
-        
-        Args:
-            action (dict): A dictionary containing "stock_idx", "size", and "position".
-        
-        Returns:
-            tuple: The observation, reward, terminated status, whether the environment is done, and additional info.
-        """
         stock_idx = action["stock_idx"]
         size = action["size"]
         position = action["position"]
         width, height = size
         x, y = position
 
-        # Find matching product from the list (by size or reversed)
+        successful_cut = False  # <- Đánh dấu mặc định
+
         prod_idx = None
         for i, product in enumerate(self._products):
             if (np.array_equal(product["size"], np.array(size)) or 
@@ -204,15 +196,20 @@ class CuttingStockEnvOptimized(gym.Env):
                     self.cutted_stocks[stock_idx] = 1
                     stock[x:x+width, y:y+height] = prod_idx
                     self._products[prod_idx]["quantity"] -= 1
+                    successful_cut = True  # <- Ghi nhận thành công
 
         terminated = all(product["quantity"] == 0 for product in self._products)
         reward = 1 if terminated else 0
 
         obs = self._get_obs()
         info = self._get_info()
+        info["successful_cut"] = successful_cut  # <- Trả về trạng thái này
+
         if self.render_mode == "human":
             self._render_frame()
+
         return obs, reward, terminated, False, info
+
 
     def render(self):
         """
