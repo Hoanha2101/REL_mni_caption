@@ -18,24 +18,61 @@ def get_reward(observation, info):
     stock_bonus = lambda_bonus * (num_stocks_unused / total_stocks)
     return (filled_ratio - trim_loss) + stock_bonus
 
+# def compute_metrics(env, episode_steps, episode_reward):
+#     used_stocks = int(np.sum(env.cutted_stocks))
+#     remaining_stock = 0
+#     used_areas = []
+#     total_trim_loss_val = 0
+#     for idx, stock in enumerate(env._stocks):
+#         valid_area = np.sum(stock != -2)
+#         free_area = np.sum(stock == -1)
+#         remaining_stock += free_area
+#         if env.cutted_stocks[idx] == 1:
+#             used_area = valid_area - free_area
+#             used_areas.append(used_area)
+#             tl = free_area / valid_area if valid_area > 0 else 0
+#             total_trim_loss_val += tl
+#     avg_used_stock_area = np.mean(used_areas) if used_areas else 0
+#     metrics = {
+#         "steps": episode_steps,
+#         "total_trim_loss": total_trim_loss_val,
+#         "remaining_stock": remaining_stock,
+#         "used_stocks": used_stocks,
+#         "avg_used_stock_area": avg_used_stock_area,
+#         "total_reward": episode_reward
+#     }
+#     return metrics
+
 def compute_metrics(env, episode_steps, episode_reward):
+    """
+    Tính các chỉ số dựa trên trạng thái cuối của môi trường:
+      - total_trim_loss: Tổng diện tích lãng phí (free area) trong các stock đã được cắt.
+      - remaining_stock: Số lượng stock chưa được cắt (tổng stock - used_stocks).
+      - used_stocks: Số lượng stock đã được cắt.
+      - avg_used_stock_area: Trung bình diện tích đã sử dụng (valid_area - free_area) trên các stock đã cắt.
+      - steps: Số bước của episode.
+      - total_reward: Tổng reward của episode.
+    """
+    num_stocks = len(env._stocks)
     used_stocks = int(np.sum(env.cutted_stocks))
-    remaining_stock = 0
-    used_areas = []
-    total_trim_loss_val = 0
+    remaining_stock = num_stocks - used_stocks  # Số stock chưa sử dụng
+
+    total_trim_loss = 0  # Tổng diện tích lãng phí (free area) trên các stock đã cắt
+    used_areas = []      # Diện tích đã sử dụng của từng stock đã cắt
+
     for idx, stock in enumerate(env._stocks):
-        valid_area = np.sum(stock != -2)
-        free_area = np.sum(stock == -1)
-        remaining_stock += free_area
+        valid_area = np.sum(stock != -2)  # Số ô hợp lệ trong stock
+        free_area = np.sum(stock == -1)     # Số ô trống
         if env.cutted_stocks[idx] == 1:
             used_area = valid_area - free_area
             used_areas.append(used_area)
-            tl = free_area / valid_area if valid_area > 0 else 0
-            total_trim_loss_val += tl
+            total_trim_loss += free_area
+
     avg_used_stock_area = np.mean(used_areas) if used_areas else 0
+
     metrics = {
         "steps": episode_steps,
-        "total_trim_loss": total_trim_loss_val,
+        "total_trim_loss": total_trim_loss,
         "remaining_stock": remaining_stock,
         "used_stocks": used_stocks,
         "avg_used_stock_area": avg_used_stock_area,
@@ -43,7 +80,9 @@ def compute_metrics(env, episode_steps, episode_reward):
     }
     return metrics
 
-def train(num_episodes=10, state_size=100000, action_size=1000):
+
+
+def train(num_episodes=500, state_size=100000, action_size=1000):
     """
     Train the Q-Learning agent for 10 batches using static_data.
     For each batch:
@@ -90,7 +129,7 @@ def train(num_episodes=10, state_size=100000, action_size=1000):
         best_action_list = []  # Lưu các action hợp lệ của episode tốt nhất
         total_steps = 0
 
-        batch_start_time = time.time()
+        # batch_start_time = time.time()
 
         # Training loop for each episode
         for episode in range(num_episodes):
@@ -154,7 +193,7 @@ def train(num_episodes=10, state_size=100000, action_size=1000):
         else:
             print("Skipping replay since best_action_list is empty.")
 
-        batch_runtime = time.time() - batch_start_time
+        batch_runtime = time.time() - start_time
         if best_metrics is None:
             best_metrics = {
                 "steps": 0,
