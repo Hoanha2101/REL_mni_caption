@@ -5,6 +5,22 @@ This repository presents a comprehensive solution to the **2D Cutting Stock Prob
 
 ---
 
+## 📌 Slide
+
+```bash
+📦
+├── 📁 1_slide
+│   └── 📄 AI17C_Group3_Project.pptx
+```
+
+## 📌 Report 
+
+```bash
+📦
+├── 📁 Report_Cutting_Stock_2D
+|   └──REPORT_GROUP3_3_23_2025_FPT.pdf
+```
+
 ## 📌 Problem Description
 
 In manufacturing industries, large material sheets must be cut into smaller rectangles to meet demand. The challenge lies in:
