@@ -1,5 +1,3 @@
-# Tạo nội dung README.md cho dự án Q-Learning giải bài toán 2D Cutting Stock
-readme_content = """
 # ✂️ Solving the 2D Cutting Stock Problem using Q-Learning
 
 This repository demonstrates how **Q-Learning**, a classic reinforcement learning algorithm, can be applied to the **2D Cutting Stock Problem (2D-CSP)** to optimize material usage, reduce trim loss, and minimize the number of stock sheets used.
