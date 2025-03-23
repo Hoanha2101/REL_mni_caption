@@ -136,6 +136,8 @@ Invalid actions are skipped or retried.
 │   └── 📊 stock_product_analysis.png
 │
 ├── 📁 documentation
+|   ├── 📄 BartoSutton.pdf
+|   └── 📄 Michael T. Goodrich, Roberto Tamassia, Michael H. Goldwasser-Data Structures and Algorithms in Python-Wiley (2013).pdf
 │
 ├── 📁 heuristic_app
 │   ├── 📄 README.md
@@ -204,6 +206,7 @@ Invalid actions are skipped or retried.
 │       └── 🏋️ train_q_learning.py
 │
 ├── 📁 Report_Cutting_Stock_2D
+|   └──REPORT_GROUP3_3_23_2025_FPT.pdf
 │
 └── 📁 results
     └── 📊 comparison_5_method.png
