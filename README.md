@@ -44,60 +44,66 @@ To ensure feasibility and optimize production efficiency in the 2D Cutting Stock
 
 ### 1. Demand Fulfillment Constraint  
 **Objective**: Ensure that the number of cut pieces meets or exceeds demand for each item.  
-**Expression**: 
-$$ \sum_{j} (a_{ij} \cdot x_j) \geq d_i \quad \forall i $$   
-- a_ij: number of item i in pattern j  
-- x_j: number of times pattern j is used  
-- d_i: demand of item i  
+
+**Expression:**  
+\\[
+\\sum_{j} (a_{ij} \\cdot x_j) \\geq d_i \\quad \\forall i
+\\]
+
+- \\( a_{ij} \\): number of item \\( i \\) in pattern \\( j \\)  
+- \\( x_j \\): number of times pattern \\( j \\) is used  
+- \\( d_i \\): demand of item \\( i \\)  
+
+---
 
 ### 2. Material Utilization Constraint  
 **Objective**: Ensure the total area of all cut pieces in a pattern does not exceed the raw stock area.  
-**Expression**:
- $$ \sum_{i} (w_i \cdot h_i \cdot a_{ij}) \leq W \cdot H \quad \forall j $$
-- w_i, h_i: width and height of item i  
-- W, H: width and height of the stock material  
+
+**Expression:**  
+\\[
+\\sum_{i} (w_i \\cdot h_i \\cdot a_{ij}) \\leq W \\cdot H \\quad \\forall j
+\\]
+
+- \\( w_i, h_i \\): width and height of item \\( i \\)  
+- \\( W, H \\): width and height of the stock material  
+
+---
 
 ### 3. Non-Overlapping Constraint  
 **Objective**: No two pieces in the same pattern overlap. This is handled using geometric or combinatorial "no-overlap" conditions.  
 
+---
+
 ### 4. Binary and Non-Negativity Constraints  
 **Objective**: Ensure logical and implementable decisions.  
-- Binary decision variables: x_ij ∈ {0, 1}  
-- Number of uses of each pattern must be non-negative: x_j ≥ 0  
 
-### 5. Seamless and Starting from the Edge Constraint
+- Binary decision variables: \\( x_{ij} \\in \\{0, 1\\} \\)  
+- Number of uses of each pattern must be non-negative: \\( x_j \\geq 0 \\)  
 
+---
+
+### 5. Seamless and Starting from the Edge Constraint  
 To optimize material usage and simplify the cutting process, pieces must be:
 
-- **Seamless**: placed without unnecessary gaps.
-- **Starting from the edge**: the first cuts must touch the edge of the material sheet.
+- **Seamless**: placed without unnecessary gaps  
+- **Starting from the edge**: the first cuts must touch the edge of the material sheet  
 
-Assuming the sheet has size \( W \times H \), and each piece \( i \) has top-left coordinates \( (x_i, y_i) \) and dimensions \( (w_i, h_i) \), the placement constraint is:
+Assuming the sheet has size \\( W \\times H \\), and each piece \\( i \\) has top-left coordinates \\( (x_i, y_i) \\) and dimensions \\( (w_i, h_i) \\), the placement constraint is:
 
-<div align="center">
-
-$$
-\begin{cases}
-x_i = 0 \quad \text{or} \quad x_i = x_j + w_j \\\\
-y_i = 0 \quad \text{or} \quad y_i = y_j + h_j
-\end{cases}
-$$
-
-</div>
+\\[
+\\begin{cases}
+x_i = 0 \\quad \\text{or} \\quad x_i = x_j + w_j \\\\
+y_i = 0 \\quad \\text{or} \\quad y_i = y_j + h_j
+\\end{cases}
+\\]
 
 This ensures that each piece is either aligned with the sheet edge or with another piece.
 
 To avoid large unusable gaps between pieces, we also enforce:
 
-<div align="center">
-
-$$
-x_{i+1} = x_i + w_i \quad \text{or} \quad y_{i+1} = y_i + h_i
-$$
-
-</div>
-
-
+\\[
+x_{i+1} = x_i + w_i \\quad \\text{or} \\quad y_{i+1} = y_i + h_i
+\\]
 
 ### 6. Orientation Constraint  
 **Objective**: Treat pieces with the same dimensions but different orientations (e.g., 4×2 vs. 2×4) as distinct types. Orientation must follow predefined rules. Stocks and products are indexed starting from 1 (0 in code).
