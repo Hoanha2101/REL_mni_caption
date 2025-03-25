@@ -369,6 +369,7 @@ Combining heuristics + RL or fine-tuning policy after training is a potential tr
 ## 📚 References
 
 - [Environment](https://github.com/martinakaduc/gym-cutting-stock.git)
+- [Cutting stock 2D algorithm](https://pure.iiasa.ac.at/id/eprint/3571/1/CP-91-009.pdf?utm_source=chatgpt.com)
 - [📘 PPO Paper (Schulman et al., 2017)](https://arxiv.org/pdf/1707.06347)
 - [📝 PPO Medium Article](https://medium.com/@oleglatypov/a-comprehensive-guide-to-proximal-policy-optimization-ppo-in-ai-82edab5db200)
 - [🎥 PPO Tutorial on YouTube](https://www.youtube.com/watch?v=hlv79rcHws0)
