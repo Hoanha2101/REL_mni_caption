@@ -7,7 +7,9 @@
 - **Actor**: Learns a policy to select actions based on current environment states.
 - **Critic**: Evaluates the value of states (V(s)) to guide and stabilize the actor's updates.
 
-![Actor-Critic PPO](https://github.com/user-attachments/assets/9ed646e0-7b12-4dd4-bea8-eb904c315bcd)
+![image](https://github.com/user-attachments/assets/1d9b824b-3d1c-4939-8d1b-95024c74e190)
+
+(Image's source: Proximal Policy Optimization (PPO) architecture) 
 
 ---
 
